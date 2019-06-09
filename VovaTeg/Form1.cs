@@ -1,10 +1,10 @@
-﻿using System;
+﻿using Ookii.Dialogs.WinForms;
+using System;
 using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using Ookii.Dialogs.WinForms;
 using File = System.IO.File;
 
 namespace VovaTeg
@@ -18,8 +18,8 @@ namespace VovaTeg
 
         public static string Translit(string str)
         {
-            string[] lat_up = { "A", "B", "V", "G", "D", "E", "Yo", "Zh", "Z", "I", "Y", "K", "L", "M", "N", "O", "P", "R", "S", "T", "U", "F", "Kh", "Ts", "Ch", "Sh", "Shch", "\"", "Y", "'", "E", "Yu", "Ya" };
-            string[] lat_low = { "a", "b", "v", "g", "d", "e", "yo", "zh", "z", "i", "y", "k", "l", "m", "n", "o", "p", "r", "s", "t", "u", "f", "kh", "ts", "ch", "sh", "shch", "\"", "y", "'", "e", "yu", "ya" };
+            string[] lat_up = { "A", "B", "V", "G", "D", "E", "Yo", "Zh", "Z", "I", "Y", "K", "L", "M", "N", "O", "P", "R", "S", "T", "U", "F", "Kh", "Ts", "Ch", "Sh", "Shch", "", "Y", "", "E", "Yu", "Ya" };
+            string[] lat_low = { "a", "b", "v", "g", "d", "e", "yo", "zh", "z", "i", "y", "k", "l", "m", "n", "o", "p", "r", "s", "t", "u", "f", "kh", "ts", "ch", "sh", "shch", "", "y", "", "e", "yu", "ya" };
             string[] rus_up = { "А", "Б", "В", "Г", "Д", "Е", "Ё", "Ж", "З", "И", "Й", "К", "Л", "М", "Н", "О", "П", "Р", "С", "Т", "У", "Ф", "Х", "Ц", "Ч", "Ш", "Щ", "Ъ", "Ы", "Ь", "Э", "Ю", "Я" };
             string[] rus_low = { "а", "б", "в", "г", "д", "е", "ё", "ж", "з", "и", "й", "к", "л", "м", "н", "о", "п", "р", "с", "т", "у", "ф", "х", "ц", "ч", "ш", "щ", "ъ", "ы", "ь", "э", "ю", "я" };
             for (int i = 0; i <= 32; i++)
@@ -32,7 +32,18 @@ namespace VovaTeg
 
         VistaFolderBrowserDialog dialog = new VistaFolderBrowserDialog();
         
-        async void ChangeFiles()
+        string[] Gfiles(string path)
+        {
+
+            //приём файлов
+            return Directory.EnumerateFiles(path, "*.*", SearchOption.TopDirectoryOnly)
+                .Select(p => Path.GetFileName(p))
+                .Where(s => s.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase)
+                            || s.EndsWith(".wav", StringComparison.OrdinalIgnoreCase)).ToArray();
+
+        }
+
+        public void ChangeFiles()
         {
             label1.Text = "";
             label1.Visible = false;
@@ -40,29 +51,26 @@ namespace VovaTeg
             dialog.Description = "Выбери папку с музыкой";
             dialog.ShowNewFolderButton = true;
             dialog.UseDescriptionForTitle = true;
+            
 
-
+            
 
             if (dialog.ShowDialog() == DialogResult.OK)
             {
-                var path = dialog.SelectedPath;
+                string path = dialog.SelectedPath;
 
-                //var myFiles = Path.GetFileNameWithoutExtension(path).ToList();
-
-                var myFiles = Directory.EnumerateFiles(path, "*.*")
-                    .Select(p => Path.GetFileName(p))
-                    .Where(s => s.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase)).ToArray();
-
-
+                var myFiles = Gfiles(path);
+                //переименование
                 foreach (var VARIABLE in myFiles)
                 {
                    File.Move(path.ToString() + '\\'
                                                   + VARIABLE, path.ToString() + '\\'
                                                                               + Translit(VARIABLE.ToString()
-                                                                                  .ToUpper().Replace(".MP3", ".mp3")));
+                                                                                  .ToUpper().Replace(".MP3", ".mp3")
+                                                                                  .Replace(".WAV", ".wav")));
                 }
                 
-                    await Task.Delay(2000);
+                    //await Task.Delay(2000);
                     button2.Enabled = true;
                     button2.Focus();
                     label1.Visible = true;
@@ -88,11 +96,11 @@ namespace VovaTeg
             progressBar1.Value = 0;
 
             var path = dialog.SelectedPath;
-            var myFiles = Directory.EnumerateFiles(path, "*.*")
-                .Select(p => Path.GetFileName(p))
-                .Where(s => s.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase)).ToArray();
 
+            //приём файлов
+            var myFiles = Gfiles(path);
 
+            //очистка тегов
             foreach (var VARIABLE in myFiles)
             {
                 File.SetAttributes(path + "\\" + VARIABLE, FileAttributes.Normal);
@@ -106,6 +114,7 @@ namespace VovaTeg
 
             while (progressBar1.Value < qt)
             {
+                //% на прогресс баре
                 int percent = (int)(((double)progressBar1.Value / (double)progressBar1.Maximum) * 100);
                 progressBar1.Refresh();
                 progressBar1.CreateGraphics().DrawString(percent.ToString() + "%",
@@ -115,14 +124,49 @@ namespace VovaTeg
 
                 await Task.Run(() =>
                 {
+                    //имя файла => тайтл
                     foreach (var VARIABLE in myFiles)
                     {
                         var tfile = TagLib.File.Create(path + "\\" + VARIABLE);
-                        tfile.Tag.Title = tfile.Name.Replace(path, "").Remove(0, 1)
-                            .Replace(".mp3", "");
+                        tfile.Tag.Title = tfile.Name.Substring(tfile.Name.LastIndexOf("\\")+1)
+                            .Replace(".mp3", "").Replace(".wav", "");
+
+                        //TODO: попробовать удалить из тайтла цифры
+
 
                         tfile.Save();
                     }
+
+
+
+                    //начальные цифры в именах файлов до точки => номер трека
+                    foreach (var VARIABLE in myFiles)
+                    {
+                        var tfile = TagLib.File.Create(path + "\\" + VARIABLE);
+                        var tempString = tfile.Name.Replace(path, "").Remove(0, 1)
+                            .Replace(".mp3", "");
+
+                        var v = tempString.Substring(0, tempString.IndexOf("."));
+                        tfile.Tag.Track = Convert.ToUInt32(v);
+
+                        tfile.Save();
+                    }
+                    ////нумерация треков
+                    //List<uint> trackList = new List<uint>();
+                    //foreach (var VARIABLE in myFiles)
+                    //{
+                    //    var tfile = TagLib.File.Create(path + "\\" + VARIABLE);
+                    //    trackList.Add(tfile.Tag.Track);
+
+                    //    for (uint i = 0; i <= trackList.Count; i++)
+                    //    {
+                    //        tfile.Tag.Track = i;
+                    //    }
+                        
+                    //    tfile.Save();
+
+                    //}
+
                 });
 
                 progressBar1.Value++;
